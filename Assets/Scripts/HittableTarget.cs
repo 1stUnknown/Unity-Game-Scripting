@@ -6,45 +6,68 @@ public class HittableTarget : Hittable
 {
     Quaternion currentRotation;
     Quaternion endRotation;
+    Quaternion initialRotation;
     public Vector3 rotationInEularAngles;
-    Transform parentTransform;
     public float timer;
     float elapsedTime;
-    public bool canBeHit;
-    bool wasHit;
+    public bool canBeHit = true;
+    bool moveTarget;
     // Start is called before the first frame update
     void Start()
     {
-        parentTransform = transform.parent;
-        currentRotation = parentTransform.rotation;
+        initialRotation = transform.parent.rotation;
+        currentRotation = transform.parent.rotation;
+        resetAllowedToBeHitTimes = allowedToBeHitTimes;
+        StartTimer.OnStartingTimer += ResetTarget;
+    }
+    protected override void ResetTarget()
+    {
+        allowedToBeHitTimes = resetAllowedToBeHitTimes;
+        transform.parent.rotation = initialRotation;
+        currentRotation = initialRotation;
+        canBeHit = true;
     }
 
     // Update is called once per frame
     void FixedUpdate()
     {
-        if (wasHit)
+        if (moveTarget)
         {
-            elapsedTime += Time.fixedDeltaTime;
-            float t = elapsedTime / timer;
-            parentTransform.rotation = Quaternion.Lerp(currentRotation, endRotation, t);
-            if (t > 1)
-            {
-                wasHit = false;
-                canBeHit = true;
-                currentRotation = parentTransform.rotation;
-                elapsedTime = 0;
-            }
+            MoveTarget();
+        }
+    }
+
+    public void StartMovingTarget(Vector3 moveAmount)
+    {
+        endRotation = currentRotation * Quaternion.Euler(moveAmount);
+        moveTarget = true;
+        canBeHit = false;
+    }
+
+    void MoveTarget()
+    {
+        elapsedTime += Time.fixedDeltaTime;
+        float t = elapsedTime / timer;
+        transform.parent.rotation = Quaternion.Lerp(currentRotation, endRotation, t);
+        if (t > 1)
+        {
+            moveTarget = false;
+            canBeHit = true;
+            currentRotation = transform.parent.rotation;
+            elapsedTime = 0;
         }
     }
 
     public override void TakeHit(Vector3 direction, float force, Vector3 hitPoint)
     {
-        //Debug.Log("Override TakeHit");
         if (canBeHit)
         {
-            endRotation = currentRotation * Quaternion.Euler(rotationInEularAngles);
-            wasHit = true;
-            canBeHit = false;
+            allowedToBeHitTimes--;
+            StartMovingTarget(rotationInEularAngles);
         }
+    }
+    private void OnDestroy()
+    {
+        StartTimer.OnStartingTimer -= ResetTarget;
     }
 }
